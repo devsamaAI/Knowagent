@@ -39,88 +39,98 @@ Concise introduction to vector databases and their role in modern AI.
 ## Features
 
 - **Multi-platform** — YouTube, GitHub, Instagram, articles, any URL
-- **AI analysis** — summary, difficulty, time estimate, prerequisites (powered by Groq / Llama 3)
-- **Security scoring** — every URL scored 1–5 for safety; description links checked too
-- **Persistent library** — SQLite database, search and browse anytime
+- **AI analysis** — summary, difficulty, time estimate, prerequisites (Groq / Llama 3)
+- **Security scoring** — every URL scored 1–5; description links checked too
+- **Persistent library** — PostgreSQL on Neon (cloud), browse and search anytime
 - **Always-on** — runs as a systemd service, auto-restarts on crash
 
 ---
 
-## Setup (Local)
+## Architecture
 
-### Step 1: Get your API keys
+```
+Telegram ──► Bot (laptop / Raspberry Pi) ──► Groq AI
+                        │
+                        ▼
+                  Neon PostgreSQL (cloud)
+```
 
-**Telegram Bot Token:**
-1. Open Telegram → search `@BotFather`
-2. Send `/newbot` → follow prompts → copy the token
+Your **bot** runs locally (laptop or Pi). Your **data** lives in Neon (cloud) — safe even if the device restarts.
 
-**Groq API Key (FREE):**
-1. Go to https://console.groq.com
-2. Create an account → API Keys → Create
-3. Copy the key (free tier is generous)
+---
+
+## Local Setup
+
+### Step 1: Get API keys
+
+**Telegram Bot Token** — message `@BotFather` on Telegram → `/newbot`
+
+**Groq API Key** — [console.groq.com](https://console.groq.com) → API Keys → Create (free)
+
+**Neon Database** — [neon.tech](https://neon.tech) → Create Project → copy Connection String (free, no card)
 
 ### Step 2: Clone and install
 
 ```bash
 git clone https://github.com/devsamaAI/Knowagent.git
 cd Knowagent
-
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Step 3: Configure secrets
+### Step 3: Configure
 
 ```bash
 cp .env.example .env
-nano .env   # fill in TELEGRAM_BOT_TOKEN and GROQ_API_KEY
+nano .env   # fill in TELEGRAM_BOT_TOKEN, GROQ_API_KEY, DATABASE_URL
 ```
 
-### Step 4: Run the bot
+### Step 4: Run
 
 ```bash
 python bot.py
 ```
 
-You should see:
-```
-INFO | ✅ Database initialized
-INFO | 🤖 Pocket Agent is running... Send a link to your bot!
-```
-
-### Step 5 (optional): Run as background service
+### Step 5: Run as background service (stays alive after terminal close)
 
 ```bash
 mkdir -p ~/.config/systemd/user
-# Create service file (see deploy.sh for the full template)
+# Copy the service file from deploy.sh (or run deploy.sh directly)
 systemctl --user enable pocket-agent
 systemctl --user start pocket-agent
 ```
 
 ---
 
-## Deploy to Oracle Cloud (Free Server)
+## Deploy on Raspberry Pi (Recommended for 24/7)
 
-Oracle Cloud Free Tier gives you a permanent free ARM VM (4 CPU, 24GB RAM) — no credit card needed after signup.
+**Recommended hardware:** Raspberry Pi Zero 2 W (`SC0510`) — ~₹1,300
+Runs 24/7 at home on WiFi, costs ~₹15/month in electricity.
+
+### Setup (one command after Pi is running):
 
 ```bash
-# 1. SSH into your VM
-ssh -i your-key.pem ubuntu@YOUR_VM_IP
+# SSH into your Pi
+ssh pi@raspberrypi.local
 
-# 2. Run the deploy script
+# Run the deploy script
 curl -sO https://raw.githubusercontent.com/devsamaAI/Knowagent/main/deploy.sh
 chmod +x deploy.sh && ./deploy.sh
-
-# 3. Add your secrets
-nano ~/pocket-agent/.env
-
-# 4. Start the bot
-systemctl --user start pocket-agent
 ```
 
-**Update after code changes:**
+The script will:
+1. Install all system dependencies (including PostgreSQL client libs for ARM)
+2. Clone the repo
+3. Set up Python virtualenv
+4. Prompt you to fill in `.env`
+5. Create and start the systemd service
+6. Enable lingering (stays alive after SSH disconnect)
+
+### Update after code changes:
+
 ```bash
+ssh pi@raspberrypi.local
 git -C ~/pocket-agent pull && systemctl --user restart pocket-agent
 ```
 
@@ -133,7 +143,8 @@ Knowagent/
 ├── bot.py                    ← Entry point, registers all handlers
 ├── requirements.txt          ← Python dependencies
 ├── .env.example              ← Copy to .env and fill secrets
-├── deploy.sh                 ← One-command Oracle Cloud setup
+├── deploy.sh                 ← One-command Pi/Linux setup script
+├── Dockerfile                ← Docker support (for cloud deployment)
 │
 ├── config/
 │   └── settings.py           ← All config loaded from .env
@@ -144,12 +155,12 @@ Knowagent/
 │
 ├── tools/
 │   ├── link_detector.py      ← Detects link type (YouTube/GitHub/Instagram/article)
-│   ├── fetcher.py            ← Fetches content per platform (yt-dlp, GitHub API, scraping)
+│   ├── fetcher.py            ← Fetches content per platform
 │   ├── analyzer.py           ← Groq/Llama AI analysis → structured JSON output
 │   └── security_checker.py   ← URL security scoring (1–5) + description link extraction
 │
 └── db/
-    └── database.py           ← SQLite storage layer
+    └── database.py           ← PostgreSQL (production) + SQLite (local fallback)
 ```
 
 ---
@@ -190,7 +201,7 @@ Every URL (and links found in descriptions) is scored:
 | `fetcher.py` | yt-dlp, requests, BeautifulSoup, platform-specific APIs |
 | `analyzer.py` | Prompt engineering, structured LLM output, JSON parsing, Groq API |
 | `security_checker.py` | Heuristic scoring, redirect following, URL pattern analysis |
-| `database.py` | SQLite, SQL basics, JSON in DB, context managers |
+| `database.py` | PostgreSQL + SQLite, SQL basics, JSON in DB, context managers |
 | `link_handler.py` | async/await, Telegram API, pipeline pattern |
 | `command_handler.py` | Command parsing, formatted Telegram messages |
 
@@ -199,27 +210,37 @@ Every URL (and links found in descriptions) is scored:
 ## Troubleshooting
 
 **Bot doesn't respond?**
-- Check it's running: `systemctl --user status pocket-agent`
-- View logs: `journalctl --user -u pocket-agent -f`
-- Verify `TELEGRAM_BOT_TOKEN` in `.env`
+```bash
+systemctl --user status pocket-agent
+journalctl --user -u pocket-agent -f
+```
 
 **"Could not fetch" for YouTube?**
-- Upgrade yt-dlp: `pip install yt-dlp --upgrade`
-- Then restart: `systemctl --user restart pocket-agent`
+```bash
+pip install yt-dlp --upgrade
+systemctl --user restart pocket-agent
+```
 
 **Groq API errors?**
-- Check your key at https://console.groq.com
-- Free tier has rate limits — wait a moment and retry
+- Check key at [console.groq.com](https://console.groq.com)
+- Free tier has rate limits — wait and retry
 
 **Instagram not working?**
-- Instagram blocks most scrapers for private/login-required content
-- Public posts should work; private accounts will always fail
+- Instagram blocks scrapers for private/login-required content
+- Public posts work; private accounts always fail
+
+**Database errors on Pi?**
+```bash
+# Make sure libpq-dev is installed (deploy.sh does this automatically)
+sudo apt-get install -y libpq-dev
+pip install psycopg2-binary --force-reinstall
+```
 
 ---
 
 ## Roadmap
 
-- **Phase 1** (now) ✅ — Telegram bot + Groq AI + security checks + SQLite
+- **Phase 1** (now) ✅ — Telegram bot + Groq AI + security checks + Neon PostgreSQL
 - **Phase 2** — ChromaDB vector search ("show me ML videos under 30 mins")
 - **Phase 3** — LangChain tools + true agent reasoning
-- **Phase 4** — Run locally on Raspberry Pi with Ollama (zero API cost)
+- **Phase 4** — Run models locally on Pi with Ollama (zero API cost)
