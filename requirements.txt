@@ -1,0 +1,26 @@
+# Pocket AI Agent — Phase 1 Dependencies
+# Install with: pip install -r requirements.txt
+
+# Telegram bot framework
+python-telegram-bot==21.6
+
+# Google Gemini AI (free tier: 1M tokens/day)
+google-generativeai==0.8.3
+
+# YouTube metadata extraction (no video download needed)
+yt-dlp==2024.11.4
+
+# Web scraping
+requests==2.32.3
+beautifulsoup4==4.12.3
+
+# Data validation (used heavily in LangChain too — learn this early)
+pydantic==2.9.2
+
+# Environment variable management
+python-dotenv==1.0.1
+
+# ── Phase 2 additions (don't install yet) ──────────────────────────────────
+# chromadb==0.5.18          # Vector database for semantic search
+# langchain==0.3.7          # Agent framework
+# langchain-google-genai    # LangChain + Gemini integration
