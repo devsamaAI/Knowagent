@@ -14,6 +14,9 @@ yt-dlp==2024.11.4
 requests==2.32.3
 beautifulsoup4==4.12.3
 
+# PostgreSQL driver (used in production on Koyeb/Neon)
+psycopg2-binary==2.9.9
+
 # Environment variable management
 python-dotenv==1.0.1
 

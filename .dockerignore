@@ -1,0 +1,11 @@
+.env
+*.db
+*.sqlite
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+deploy.sh
+*.log
